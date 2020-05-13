@@ -2,10 +2,13 @@ import Foundation
 import CocoaLumberjackSwift
 
 open class DebugObserverFactory: ObserverFactory {
+    public var delegate: DataAmountMesurable?
     public override init() {}
 
     override open func getObserverForTunnel(_ tunnel: Tunnel) -> Observer<TunnelEvent>? {
-        return DebugTunnelObserver()
+        let obs = DebugTunnelObserver()
+        obs.delegate = delegate
+        return obs
     }
 
     override open func getObserverForProxyServer(_ server: ProxyServer) -> Observer<ProxyServerEvent>? {
@@ -25,26 +28,31 @@ open class DebugObserverFactory: ObserverFactory {
     }
 }
 
+public protocol DataAmountMesurable {
+    func data(_ data: Data)
+}
+
 open class DebugTunnelObserver: Observer<TunnelEvent> {
+    var delegate: DataAmountMesurable?
     override open func signal(_ event: TunnelEvent) {
+        var resData: Data? = nil
         switch event {
-        case .receivedRequest,
-             .closed:
-            DDLogInfo("\(event)")
-        case .opened,
-             .connectedToRemote,
-             .updatingAdapterSocket:
-            DDLogVerbose("\(event)")
-        case .closeCalled,
-             .forceCloseCalled,
-             .receivedReadySignal,
-             .proxySocketReadData,
-             .proxySocketWroteData,
-             .adapterSocketReadData,
-             .adapterSocketWroteData:
-            DDLogDebug("\(event)")
+        case .adapterSocketWroteData(let data, by: _, on: _):
+            resData = data
+        case .adapterSocketReadData(let data, from: _, on: _):
+            resData = data
+        case .proxySocketWroteData(let data, by: _, on: _):
+            resData = data
+        case .proxySocketReadData(let data, from: _, on: _):
+            resData = data
+        default: break
         }
+        guard let d = resData else {
+            return
+        }
+        delegate?.data(d)
     }
+
 }
 
 open class DebugProxySocketObserver: Observer<ProxySocketEvent> {
